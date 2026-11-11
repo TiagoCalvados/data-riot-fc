@@ -314,3 +314,30 @@ reports Virtual Machine Platform is not enabled and the engine is stopped.
 Enabling that Windows feature requires administrator action and a Windows restart;
 neither was performed silently. See dev/README.md for the exact remaining step.
 No alwaysdata deployment or hosted database/email operation was performed.
+
+## Docker checkout verification and local port fix — 11 November 2026
+
+Version 0.1.3 fixes a startup problem found while running the new Docker stack on
+Windows Docker Desktop. Services on the internal-only bridge were healthy and
+internal HTTP smoke checks passed, but Docker left NetworkSettings.Ports empty
+and neither published host URL was reachable.
+
+The local Compose overlay now publishes app/Mailpit HTTP through a small TCP
+gateway using the existing Python image. Only the gateway joins a normal bridge;
+app, worker, PostgreSQL and Mailpit retain their internal-only network. Database
+and SMTP ports remain unpublished. The gateway preserves streaming and half-closed
+connections. `up` waits for gateway readiness, and both `up` and `smoke` now check
+the actual loopback ports from the host.
+
+The local stack is running at http://127.0.0.1:8000 with captured email UI at
+http://127.0.0.1:8025. Both coordinator and parent login/dashboard/logout flows were
+verified through the published app port. Docker credentials are separate from the
+earlier SQLite demo; use `python scripts/dev.py credentials` to display only the
+two test login passwords. Ignored `.local/docker.env` retains the generated config.
+
+Validation: Compose config passes; 76 tests passed in the disposable container
+project (one existing Starlette TestClient deprecation warning). Real PostgreSQL
+bootstrap repeatability, Mailpit capture, an authenticated invitation response and
+the independent worker heartbeat passed. Test resources were cleaned up by the
+wrapper. The prior Python server was stopped to free port 8000. SQLite demo files
+were retained. Hosted data and deployment were not involved.

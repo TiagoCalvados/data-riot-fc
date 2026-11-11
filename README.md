@@ -1,6 +1,6 @@
 # SDW · De kantine
 
-Application version **0.1.2** is defined in `app/__init__.py` and used by FastAPI.
+Application version **0.1.3** is defined in `app/__init__.py` and used by FastAPI.
 Follow `AGENTS.md`: increase the patch version for each change and start every
 commit message with that version before committing and pushing.
 

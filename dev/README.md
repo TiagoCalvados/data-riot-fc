@@ -49,10 +49,11 @@ or local Linux socket rather than a production/SSH Docker context.
 | bootstrap | One-shot Alembic migration, idempotent fictional seed and first job |
 | app | Python 3.13.18 / FastAPI as UID 10001, read-only filesystem and HTTP health probe |
 | worker | Existing `run_job` every 30 seconds locally; successful-job heartbeat and graceful shutdown |
+| gateway | Local-only TCP forwarding for app/Mailpit HTTP; the only service on a host-access bridge |
 | tests | Separate test image and disposable PostgreSQL/Mailpit project; no host ports |
 
 Compose waits for PostgreSQL/Mailpit health, then successful bootstrap completion,
-then starts app and worker. Migrations and seed are not run in every web worker.
+then starts app and worker, followed by the local HTTP gateway. Migrations and seed are not run in every web worker.
 Existing PostgreSQL advisory locks still serialize jobs and coordinator changes.
 Normal startup and shutdown retain the PostgreSQL volume. The Mailpit inbox is
 deliberately temporary and clears when its container is replaced/stopped; delivered
@@ -72,7 +73,8 @@ python scripts/dev.py test
 specified immutable image digests and rebuilds without erasing the database. Review
 and update the version/digest pairs explicitly when upgrading dependencies. Source changes are
 reproducibly copied into images; there are no host-code/credential directory mounts.
-`smoke` checks the interactive stack's HTTP, language pages, cookies, same-origin
+`up` and `smoke` verify both published ports from the host, so healthy containers
+alone cannot hide a missing browser connection. `smoke` also checks the interactive stack's HTTP, language pages, cookies, same-origin
 checks, both roles and recent worker status. It does not confirm or delete duties.
 `config` performs Compose's validation without printing interpolated secrets.
 
@@ -130,6 +132,11 @@ local test login passwords. It does not prune Docker globally or touch alwaysdat
   `docker compose config`, which contains interpolated local secrets.
 - Port busy: stop the other local service or choose different local ports; the app
   and inbox are bound to 127.0.0.1, never all host interfaces by default.
+- Docker does not publish ports for containers attached only to an internal network.
+  The local gateway joins a separate normal bridge and forwards only app/Mailpit
+  HTTP. App, worker, PostgreSQL and Mailpit remain on the internal network without
+  an external route; SMTP and database ports are not published. The gateway uses
+  the existing Python runtime image and preserves streaming/connection upgrades.
 - Startup failure: `doctor`, `status`, then `logs`; fix the failing dependency before
   retrying `up`. A failed migration prevents app/worker from starting.
 - An old Mailpit invitation may expire. Check the parent dashboard; the coordinator
@@ -137,7 +144,8 @@ local test login passwords. It does not prune Docker globally or touch alwaysdat
 - If an interrupted test leaves a random project behind, inspect `docker compose ls`
   and remove only that named test project; never use a global prune as a reset.
 
-Authoring-machine status on 11 November 2026: Docker and WSL were initially absent.
+Original authoring-machine status on 11 November 2026 (historical, not a diagnosis
+of other checkouts): Docker and WSL were initially absent.
 Docker Desktop 4.99.0 and Compose 5.7.0 are now installed. Both local/test service
 graphs pass the actual Compose parser, all 75 host tests pass, and JavaScript syntax
 checks pass. The three image tags/digests were checked against Docker Hub. Docker
@@ -156,6 +164,12 @@ Restart Windows when ready, open Docker Desktop, complete any first-run prompts,
 then run `python scripts/dev.py doctor`, `python scripts/dev.py up` and
 `python scripts/dev.py test`. If Docker then reports that WSL itself needs installing
 or updating, follow its official WSL setup instructions before retrying.
+
+Checkout verification on 11 November 2026 with version 0.1.3: the Linux engine
+started successfully, the local stack and host gateway are healthy, and both
+browser-facing login flows pass. All 76 container tests passed, followed by the
+isolated PostgreSQL/Mailpit invitation-response and worker-heartbeat checks. The
+disposable test project was removed; the interactive local stack remains running.
 
 References: [Compose startup conditions](https://docs.docker.com/compose/how-tos/startup-order/),
 [Mailpit Docker/readiness](https://mailpit.axllent.org/docs/install/docker/),

@@ -1,10 +1,35 @@
 services:
   db:
     volumes: [postgres_data:/var/lib/postgresql/data]
-  app:
-    ports: ["127.0.0.1:${APP_PORT:-8000}:8000"]
-  mailpit:
-    ports: ["127.0.0.1:${MAIL_PORT:-8025}:8025"]
+  # Docker does not publish ports from containers on internal-only networks.
+  # Only this fixed-target forwarder joins a normal bridge; services stay isolated.
+  gateway:
+    build:
+      context: .
+      target: runtime
+    command: [python, -m, dev.gateway]
+    depends_on:
+      app: {condition: service_healthy}
+      mailpit: {condition: service_healthy}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+      - "127.0.0.1:${MAIL_PORT:-8025}:8025"
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [local, host_access]
+    healthcheck:
+      test: [CMD, python, -m, dev.healthcheck, gateway]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  host_access: {}
 
 volumes:
   postgres_data:

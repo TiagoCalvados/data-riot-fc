@@ -108,7 +108,13 @@ def test_compose_separates_persistent_dev_from_disposable_tests():
     assert base['networks']['local']['internal'] is True
     assert 'volumes' not in base['services']['db'] and 'ports' not in base['services']['app']
     assert local['services']['db']['volumes'] == ['postgres_data:/var/lib/postgresql/data']
-    assert all(port.startswith('127.0.0.1:') for name in ('app', 'mailpit') for port in local['services'][name]['ports'])
+    gateway = local['services']['gateway']
+    assert all(port.startswith('127.0.0.1:') for port in gateway['ports'])
+    assert set(gateway['networks']) == {'local', 'host_access'}
+    assert local['networks']['host_access'] == {}
+    assert all('ports' not in local['services'].get(name, {}) for name in ('app', 'mailpit', 'db'))
+    assert all(service.get('networks') == ['local'] for service in base['services'].values())
+    assert 'gateway' not in test['services']
     assert test['services']['db']['tmpfs'] == ['/var/lib/postgresql/data']
     assert not any('ports' in service or 'volumes' in service for service in test['services'].values())
     assert test['services']['tests']['environment']['DATABASE_URL'].endswith('/sdw_test')

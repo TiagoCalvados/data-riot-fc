@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import uuid
+from http.client import HTTPConnection
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,9 +89,9 @@ def local_engine_endpoint(endpoint):
             or (urlsplit(endpoint).scheme == 'tcp' and urlsplit(endpoint).hostname in ('localhost', '127.0.0.1', '::1')))
 
 
-def wait_ready(command, timeout=180):
+def wait_ready(command, services=('app', 'worker'), timeout=180):
     deadline = time.monotonic()+timeout
-    pending = {'app', 'worker'}
+    pending = set(services)
     while pending and time.monotonic() < deadline:
         for service in tuple(pending):
             result = execute([*command, 'exec', '-T', service, 'python', '-m', 'dev.healthcheck', service],
@@ -103,9 +104,26 @@ def wait_ready(command, timeout=180):
         raise RuntimeError('Readiness timed out for '+', '.join(sorted(pending))+'; inspect dev.py logs')
 
 
-def start(command):
-    execute([*command, 'up', '--build', '--detach', 'app', 'worker'])
-    wait_ready(command)
+def start(command, *, local=False):
+    services = ('app', 'worker', 'gateway') if local else ('app', 'worker')
+    execute([*command, 'up', '--build', '--detach', *services])
+    wait_ready(command, services)
+
+
+def check_local_http(data):
+    for name, key, path in (('app', 'APP_PORT', '/health'), ('captured mail', 'MAIL_PORT', '/readyz')):
+        connection = HTTPConnection('127.0.0.1', int(data[key]), timeout=5)
+        try:
+            connection.request('GET', path)
+            response = connection.getresponse()
+            body = response.read()
+            if response.status != 200 or (key == 'APP_PORT' and json.loads(body) != {'status': 'ok'}):
+                raise RuntimeError('Local '+name+' health check failed')
+        except OSError:
+            raise RuntimeError('Local '+name+' port is not reachable from the host; inspect dev.py status/logs') from None
+        finally:
+            connection.close()
+    print('Host app and captured-mail ports verified')
 
 
 def isolated_tests(docker):
@@ -159,18 +177,20 @@ def main(argv=None):
     if args.command in ('up', 'rebuild'):
         if args.command == 'rebuild':
             execute([*command, 'build', '--pull'])
-        start(command)
+        start(command, local=True)
         data = read_config(CONFIG)
+        check_local_http(data)
         print('App: http://127.0.0.1:'+data['APP_PORT'])
         print('Captured mail: http://127.0.0.1:'+data['MAIL_PORT'])
         print('Login details: python scripts/dev.py credentials')
     elif args.command == 'down':
         execute([*command, 'down', '--remove-orphans'])
     elif args.command == 'logs':
-        execute([*command, 'logs', '--tail', '100', '--follow', 'app', 'worker', 'bootstrap', 'mailpit'])
+        execute([*command, 'logs', '--tail', '100', '--follow', 'app', 'worker', 'bootstrap', 'mailpit', 'gateway'])
     elif args.command == 'status':
         execute([*command, 'ps', '--all'])
     elif args.command == 'smoke':
+        check_local_http(read_config(CONFIG))
         execute([*command, 'run', '--rm', '--no-deps', '--entrypoint', 'python', 'app', '-m', 'dev.smoke'])
     elif args.command == 'reset':
         execute([*command, 'down', '--volumes', '--remove-orphans'])
