@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#142320"><meta name="description" content="Canteen scheduling for parents and volunteers at ASC SDW in Amsterdam West.">
+  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="SDW Kantine">
+  <title>SDW Kantine · Together behind the bar</title>
+  <link rel="icon" href="/static/branding/sdw-favicon.ico?v=sdw-20261105" type="image/x-icon">
+  <link rel="icon" href="/static/icons/icon-192.png?v=sdw-20261105" type="image/png" sizes="192x192">
+  <link rel="manifest" href="/static/manifest.webmanifest?v=sdw-20261105"><link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v=sdw-20261105">
+  <link rel="canonical" href="https://datariotfc.alwaysdata.net/">
+  <meta property="og:type" content="website"><meta property="og:site_name" content="SDW Kantine">
+  <meta property="og:title" content="SDW Kantine · Together behind the bar">
+  <meta property="og:description" content="Demo of the canteen schedule for parents and volunteers at ASC SDW in Amsterdam West.">
+  <meta property="og:url" content="https://datariotfc.alwaysdata.net/">
+  <meta property="og:image" content="https://datariotfc.alwaysdata.net/static/branding/sdw-logo.jpg?v=sdw-20261105">
+  <meta property="og:image:secure_url" content="https://datariotfc.alwaysdata.net/static/branding/sdw-logo.jpg?v=sdw-20261105">
+  <meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="400"><meta property="og:image:height" content="400">
+  <meta property="og:image:alt" content="The red-and-white ASC SDW club crest, Sterk Door Wilskracht since 1907.">
+  <meta name="twitter:card" content="summary"><meta name="twitter:title" content="SDW Kantine · Together behind the bar">
+  <meta name="twitter:description" content="Demo of the canteen schedule for parents and volunteers at ASC SDW in Amsterdam West.">
+  <meta name="twitter:image" content="https://datariotfc.alwaysdata.net/static/branding/sdw-logo.jpg?v=sdw-20261105">
+  <meta name="twitter:image:alt" content="The red-and-white ASC SDW club crest, Sterk Door Wilskracht since 1907.">
+  <link rel="stylesheet" href="/static/style.css"><script src="/static/app.en.js" defer></script>
+</head>
+<body>
+<div id="login-screen" class="login-screen">
+  <section class="login-art"><a class="brand" href="/"><img class="club-logo" src="/static/branding/sdw-logo.jpg" width="52" height="52" alt="ASC SDW club crest"><span>SDW<span>CANTEEN SCHEDULE</span></span></a>
+    <div class="login-copy"><span class="eyebrow pale">AMSTERDAM WEST · TOGETHER SINCE 1907</span><h1>A great club.<br>A lively canteen.<br><em>We make it happen together.</em></h1><p>A few hours of your time make a difference. Check your canteen shifts, tell us when you can help, and share the work fairly.</p></div>
+    <div class="pitch" aria-hidden="true"><div class="pitch-half"></div><div class="pitch-circle"></div><div class="pitch-box"></div></div>
+    <span class="login-foot">Strong through determination. Stronger together.</span>
+  </section>
+  <section class="login-panel"><label class="language-picker login-language">Taal / Language<select class="language-select" aria-label="Taal / Language"><option value="nl">Nederlands</option><option value="en">English</option></select></label><div class="login-form-wrap"><span class="eyebrow">WELCOME TO SDW</span><h2>Good to see you.</h2><p>Sign in to see your shifts and the club schedule.</p>
+    <form id="login-form"><label>Username<input name="username" autocomplete="username" required placeholder="Your username"></label><label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label><div id="login-error" class="form-error" role="alert"></div><button class="button primary wide" type="submit">Sign in <span>↗</span></button></form>
+    <p class="login-help">Need an account or forgotten your password?<br>Contact the canteen coordinator.</p><p class="analytics-disclosure">Limited visitor statistics use a random browser cookie. IP addresses are not stored. <button class="text-button" data-action="statistics-privacy">Manage privacy and statistics</button></p><div class="small-note"><span class="dot green"></span> For SDW parents and coordinators only</div>
+  </div><span class="copyright">ASC SDW · Sportpark Spieringhorn · Amsterdam</span></section>
+</div>
+<div id="app-screen" class="app-shell hidden">
+  <button id="menu-backdrop" class="menu-backdrop hidden" aria-label="Close menu" tabindex="-1"></button>
+  <aside id="sidebar" class="sidebar" tabindex="-1"><button id="menu-close" class="menu-close icon-button" aria-label="Close menu">×</button><a class="brand" href="/"><img class="club-logo" src="/static/branding/sdw-logo.jpg" width="52" height="52" alt="ASC SDW club crest"><span>The canteen<span>ASC SDW</span></span></a>
+    <span class="nav-caption">CLUB SCHEDULE</span><nav id="navigation" aria-label="Main navigation"></nav>
+    <div class="sidebar-bottom"><div class="club-message"><span>A little of your time.<br>A big sense of belonging.</span><small>Thank you for helping out.</small><div class="line-ball">◉</div></div><button id="account-button" class="user-card"><span id="user-avatar" class="avatar"></span><span><strong id="user-name"></strong><small id="user-role"></small></span><span>⚙</span></button><button id="logout" class="logout">Sign out ↗</button></div>
+  </aside>
+  <div class="workspace"><header class="topbar"><button id="mobile-menu" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button><div class="topbar-title"><span class="muted">ASC SDW</span><span class="breadcrumb">/</span><span id="breadcrumb">Overview</span></div><div class="topbar-right"><label class="language-picker"><span class="sr-only">Taal / Language</span><select class="language-select" aria-label="Taal / Language"><option value="nl">Nederlands</option><option value="en">English</option></select></label><span class="location"><span class="dot green"></span> Sportpark Spieringhorn</span><span id="today"></span></div></header>
+    <div id="demo-banner" class="demo-banner hidden"><strong>Demo environment</strong><span>Fictional parents and matches · emails are simulated and never sent.</span></div>
+    <main id="main-content" tabindex="-1"></main><footer class="app-footer"><span>ASC SDW · Canteen schedule</span><button class="text-button" data-action="statistics-privacy">Manage privacy and statistics</button><span>All times: Europe/Amsterdam</span></footer>
+  </div>
+  <nav id="mobile-navigation" class="mobile-navigation" aria-label="Quick navigation"></nav>
+</div>
+<div id="connection-status" class="connection-status hidden" role="status">You're offline. Reconnect to see the current schedule or respond.</div>
+<dialog id="modal"><div class="modal-header"><h2 id="modal-title"></h2><button id="modal-close" class="icon-button" aria-label="Close">×</button></div><div id="modal-body"></div></dialog>
+<div id="toast" class="toast hidden" role="status"></div>
+</body></html>
