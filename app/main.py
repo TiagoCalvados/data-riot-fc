@@ -184,6 +184,7 @@ def dashboard(user=Depends(current_user), db: Session = Depends(get_db)):
         'teams': [{'id': t.id, 'name': t.name} for t in db.scalars(select(Team).order_by(Team.name))],
         'policy': {k: getattr(p, k) for k in ('min_gap_days', 'volunteers_per_shift', 'shift_minutes', 'lookahead_days', 'response_hours', 'automation_enabled')},
         'demo_mode': settings().demo_mode,
+        'local_mail_capture': settings().local_mail_capture,
         'fixture_snapshot': ({'source_url': snapshot.detail['source_url'], 'verified_at': snapshot.detail['verified_at'],
                              'coverage_dates': snapshot.detail['coverage_dates'], 'count': snapshot.detail['count'],
                              'automatic_feed': False} if snapshot else None),

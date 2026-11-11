@@ -1,0 +1,10 @@
+services:
+  db:
+    volumes: [postgres_data:/var/lib/postgresql/data]
+  app:
+    ports: ["127.0.0.1:${APP_PORT:-8000}:8000"]
+  mailpit:
+    ports: ["127.0.0.1:${MAIL_PORT:-8025}:8025"]
+
+volumes:
+  postgres_data:

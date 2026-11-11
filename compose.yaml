@@ -1,0 +1,107 @@
+# Shared service graph; scripts/dev.py selects local or isolated-test storage/ports.
+x-environment: &environment
+  DATABASE_URL: postgresql+psycopg://sdw:${LOCAL_DB_PASSWORD:?Run python scripts/dev.py init}@db:5432/${LOCAL_DB_NAME:-sdw_local}
+  SECRET_KEY: ${LOCAL_SECRET_KEY:?Run python scripts/dev.py init}
+  BASE_URL: http://127.0.0.1:${APP_PORT:-8000}
+  COOKIE_SECURE: "false"
+  DEMO_MODE: "true"
+  DEMO_STAFFING_ENABLED: "false"
+  CANTEEN_OPENING_HOUR: "8"
+  LOCAL_MAIL_CAPTURE: "true"
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_FROM: kantine@example.invalid
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SPORTLINK_CLIENT_ID: ""
+  SPORTLINK_CLUB_CODE: ""
+  LOCAL_DOCKER: "1"
+  LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:?Run python scripts/dev.py init}
+  LOCAL_PARENT_PASSWORD: ${LOCAL_PARENT_PASSWORD:?Run python scripts/dev.py init}
+  WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-30}
+
+x-app: &app
+  build:
+    context: .
+    target: runtime
+  environment: *environment
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [local]
+
+services:
+  db:
+    image: postgres:17.11-alpine3.23@sha256:3a5d537cf82c9dc297fe985add4a7e1111b5c9ec52439073968d0fec9cf1ed08
+    environment:
+      POSTGRES_USER: sdw
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Run python scripts/dev.py init}
+      POSTGRES_DB: ${LOCAL_DB_NAME:-sdw_local}
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U sdw -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    networks: [local]
+
+  mailpit:
+    image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    user: "10001:10001"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      MP_DATABASE: /tmp/mailpit.db
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_SMTP_DISABLE_RDNS: "true"
+      MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
+      MP_MAX_MESSAGES: "500"
+    healthcheck:
+      test: [CMD, /mailpit, readyz]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [local]
+
+  bootstrap:
+    <<: *app
+    command: [python, -m, dev.bootstrap]
+    depends_on:
+      db: {condition: service_healthy}
+      mailpit: {condition: service_healthy}
+    restart: "no"
+
+  app:
+    <<: *app
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -m, dev.healthcheck, app]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    <<: *app
+    command: [python, -m, dev.worker]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -m, dev.healthcheck, worker]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+networks:
+  local:
+    internal: true

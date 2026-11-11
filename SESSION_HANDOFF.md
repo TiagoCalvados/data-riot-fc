@@ -277,3 +277,40 @@ the source release now explicitly defines 0.1.1 in `app/__init__.py` and uses th
 same value in FastAPI. This Git publication does not deploy or restart the live app.
 Secrets, local databases, research downloads, environments and backup archives stay
 local and are excluded by `.gitignore`.
+
+## Local Docker environment — source release 0.1.2, 11 November 2026
+
+The user requested a complete local Docker test environment. Source now contains
+a non-root runtime/test Dockerfile, a shared Compose service graph, separate local
+and test overlays, and `scripts/dev.py` for cross-platform lifecycle commands.
+PostgreSQL 17.11 persists only in the fixed local development project; each test
+uses its own random project, fresh tmpfs PostgreSQL database and separate Mailpit.
+Python 3.13.18, PostgreSQL and Mailpit 1.32.0 are pinned to verified image digests.
+App and inbox default to loopback ports 8000 and 8025. Bootstrap waits for healthy
+dependencies, migrates with Alembic and seeds fictional accounts idempotently;
+app/worker wait for bootstrap completion. The worker runs existing jobs every
+30 seconds locally, handles shutdown and exposes a successful-job heartbeat.
+
+The default production mail path is unchanged. The explicit LOCAL_MAIL_CAPTURE
+development option only accepts demo mode, HTTP loopback URLs/local cookies,
+Mailpit or loopback SMTP on port 1025 without credentials, an example.invalid
+sender and fictional example.invalid recipients. Captured outbox records remain
+simulated; reply windows begin after local SMTP acceptance. Docker uses fictional
+invitations rather than the deployment's passive demo staffing placeholders so
+email/accept/decline can be exercised. Generated passwords/config live only in
+ignored `.local/docker.env`; root/private production configuration is untouched.
+The Docker context is source-allowlisted and contains no secrets, local data or
+Git history. The wrapper refuses remote Docker endpoints, preserves local volumes
+on normal startup/shutdown and requires an explicit destructive reset flag.
+
+Validation: 75 host regression tests passed, both JavaScript syntax checks passed,
+and both service graphs passed the real Docker Compose parser (including no test
+host ports, isolated database name/storage and worker interval). The isolated
+runner includes real PostgreSQL migration/seed-repeatability checks, HTTP login/
+role/origin/cookie checks, captured Mailpit invitation/token/response flow and an
+independent worker persistence check. Those container integrations have not run:
+Docker Desktop 4.99.0 / Compose 5.7.0 are installed, but the dashboard explicitly
+reports Virtual Machine Platform is not enabled and the engine is stopped.
+Enabling that Windows feature requires administrator action and a Windows restart;
+neither was performed silently. See dev/README.md for the exact remaining step.
+No alwaysdata deployment or hosted database/email operation was performed.

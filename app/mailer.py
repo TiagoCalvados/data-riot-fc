@@ -4,7 +4,7 @@ from datetime import timedelta
 from email.message import EmailMessage
 from sqlalchemy import select
 from app.config import settings
-from app.models import Invitation, Outbox, Shift, utcnow, aware
+from app.models import Invitation, Outbox, Shift, User, utcnow, aware
 from app.planning import policy, valid_shift, cancel_invitation, linked_fixtures
 from app.security import decrypt_payload
 
@@ -26,13 +26,18 @@ def deliver_outbox(db, smtp_factory=None):
             if invitation.state == 'queued':
                 cancel_invitation(db, invitation, 'Dienst niet langer beschikbaar.')
             continue
-        simulated = config.demo_mode and shift.is_demo
-        if not simulated and (config.demo_mode or not config.mail_ready):
+        capture = config.local_mail_capture and config.demo_mode and shift.is_demo
+        simulated = config.demo_mode and shift.is_demo and not capture
+        if not simulated and not capture and (config.demo_mode or not config.mail_ready):
             item.error = 'E-mail niet actief: configureer SMTP en schakel demonstratiemodus uit.'
             continue
         payload = decrypt_payload(item.encrypted_payload)
+        if capture and (not db.get(User, invitation.user_id).is_demo
+                        or not payload['to'].lower().endswith('@example.invalid')):
+            item.error = 'Lokale testinbox: alleen fictieve example.invalid-adressen zijn toegestaan.'
+            continue
         # Synthetic recipients must never leave the application, even in production.
-        if not simulated and (shift.is_demo or payload['to'].lower().endswith(('.invalid', '.test', '@example.com'))):
+        if not simulated and not capture and (shift.is_demo or payload['to'].lower().endswith(('.invalid', '.test', '@example.com'))):
             item.error = 'Testadres: verzending geblokkeerd.'
             continue
         deadline = min(utcnow() + timedelta(hours=policy(db).response_hours), aware(shift.starts_at) - timedelta(hours=2))
@@ -49,13 +54,14 @@ def deliver_outbox(db, smtp_factory=None):
                 if config.smtp_port == 465:
                     kwargs['context'] = ssl.create_default_context()
                 with factory(config.smtp_host, config.smtp_port, **kwargs) as smtp:
-                    if config.smtp_port != 465:
+                    if not capture and config.smtp_port != 465:
                         smtp.ehlo()
                         smtp.starttls(context=ssl.create_default_context())
                         smtp.ehlo()
-                    smtp.login(config.smtp_username, config.smtp_password)
+                    if not capture:
+                        smtp.login(config.smtp_username, config.smtp_password)
                     smtp.send_message(msg)
-            item.state = 'simulated' if simulated else 'sent'
+            item.state = 'simulated' if simulated or capture else 'sent'
             item.sent_at = utcnow()
             item.error = ''
             # Erase delivered links from stored email bodies; only hashes remain on invitations.

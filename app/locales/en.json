@@ -432,5 +432,7 @@
   "Clubmomentopname": "Club snapshot",
   "Officiële wedstrijddetails ↗": "Official match details ↗",
   "Het echte clubprogramma is gecontroleerd en ingevoerd": "The real club programme was checked and imported",
-  "Demo-bezetting bij echte wedstrijden; geen echte ouderbevestigingen.": "Fictional staffing for real fixtures; no real parent confirmations."
+  "Demo-bezetting bij echte wedstrijden; geen echte ouderbevestigingen.": "Fictional staffing for real fixtures; no real parent confirmations.",
+  "Lokale testomgeving · fictieve gegevens · e-mails alleen in de lokale testinbox.": "Local test environment · fictional data · email goes only to the local test inbox.",
+  "E-mails alleen in de lokale testinbox": "Email goes only to the local test inbox"
 }

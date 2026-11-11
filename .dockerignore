@@ -1,0 +1,26 @@
+# Allowlist: local secrets, databases, research, backups and Git never enter builds.
+**
+!Dockerfile
+!.dockerignore
+!compose*.yaml
+!requirements.txt
+!requirements-dev.txt
+!alembic.ini
+!app/
+!app/**
+!migrations/
+!migrations/**
+!scripts/
+!scripts/build_locales.py
+!scripts/dev.py
+!dev/
+!dev/**
+!tests/
+!tests/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.db
+**/*.dump
+**/*.key
+**/*.pem

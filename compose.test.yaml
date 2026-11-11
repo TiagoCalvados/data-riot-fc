@@ -1,0 +1,40 @@
+# Used with compose.yaml in a unique disposable project, never the dev project.
+services:
+  db:
+    tmpfs: [/var/lib/postgresql/data]
+    restart: "no"
+  mailpit:
+    restart: "no"
+  app:
+    restart: "no"
+  worker:
+    restart: "no"
+    environment:
+      WORKER_INTERVAL_SECONDS: "3"
+  tests:
+    build:
+      context: .
+      target: test
+    environment:
+      DATABASE_URL: postgresql+psycopg://sdw:${LOCAL_DB_PASSWORD:?Missing test config}@db:5432/sdw_test
+      SECRET_KEY: ${LOCAL_SECRET_KEY:?Missing test config}
+      BASE_URL: http://127.0.0.1:${APP_PORT:-8000}
+      COOKIE_SECURE: "false"
+      DEMO_MODE: "true"
+      LOCAL_DOCKER: "1"
+      LOCAL_MAIL_CAPTURE: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: kantine@example.invalid
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:?Missing test config}
+      LOCAL_PARENT_PASSWORD: ${LOCAL_PARENT_PASSWORD:?Missing test config}
+      WORKER_INTERVAL_SECONDS: "3"
+    depends_on:
+      app: {condition: service_healthy}
+      worker: {condition: service_healthy}
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [local]
