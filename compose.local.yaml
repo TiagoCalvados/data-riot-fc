@@ -3,6 +3,24 @@ services:
     volumes: [postgres_data:/var/lib/postgresql/data]
   webmail:
     volumes: [roundcube_data:/var/roundcube/db]
+  adminer:
+    image: adminer:6.3.0-standalone@sha256:3a07decd833c2375ea749aa8018250c1db4859a78bd55354f797bfb591733233
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, php, -r, "exit(@file_get_contents('http://127.0.0.1:8080/') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [local]
   # Docker does not publish ports from containers on internal-only networks.
   # Only this fixed-target forwarder joins a normal bridge; services stay isolated.
   gateway:
@@ -14,10 +32,12 @@ services:
       app: {condition: service_healthy}
       mailpit: {condition: service_healthy}
       webmail: {condition: service_healthy}
+      adminer: {condition: service_healthy}
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
       - "127.0.0.1:${MAIL_PORT:-8025}:8025"
       - "127.0.0.1:${WEBMAIL_PORT:-8080}:8080"
+      - "127.0.0.1:${DB_UI_PORT:-8081}:8081"
     init: true
     read_only: true
     tmpfs: [/tmp]

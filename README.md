@@ -1,6 +1,6 @@
 # SDW · De kantine
 
-Application version **0.1.5** is defined in `app/__init__.py` and used by FastAPI.
+Application version **0.1.6** is defined in `app/__init__.py` and used by FastAPI.
 Follow `AGENTS.md`: increase the patch version for each change and start every
 commit message with that version before committing and pushing.
 
@@ -75,6 +75,9 @@ The credentials command shows app and webmail passwords separately. Mail service
 have no internet route and browser ports bind only to loopback. Docker generates
 its own ignored configuration and fictional
 data; it does not use the root `.env`, existing SQLite data or alwaysdata secrets.
+Adminer at http://127.0.0.1:8081 provides browser access to the local PostgreSQL
+database. Choose PostgreSQL, server `db`, user `sdw`, database `sdw_local`; the
+password is `LOCAL_DB_PASSWORD` in ignored `.local/docker.env`.
 The test command uses a disposable separate PostgreSQL stack. The non-Docker
 SQLite workflow below remains available.
 

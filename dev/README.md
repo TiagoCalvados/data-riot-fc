@@ -29,12 +29,14 @@ when the current terminal has not refreshed its PATH.
 Open **http://127.0.0.1:8000** for the app and **http://127.0.0.1:8025** for captured
 email. Open **http://127.0.0.1:8080** for Roundcube webmail. Use that exact app
 hostname: the app checks request origins against BASE_URL.
+Open **http://127.0.0.1:8081** for the local PostgreSQL database UI (Adminer).
 The coordinator is `beheer.test`; the parent is `ouder.test`. Random passwords are
 shown only by the explicit `credentials` command. All other seeded accounts and
 recipients are fictional. Credentials are stable across restarts/rebuilds.
 
 For different ports, run `init --app-port 8001 --mail-port 8026 --webmail-port 8081` before the first start.
-After initialization, edit only APP_PORT/MAIL_PORT/WEBMAIL_PORT in ignored `.local/docker.env`,
+Use `--db-ui-port 8082` to select a different database-UI port. All four ports must
+be distinct. After initialization, edit APP_PORT/MAIL_PORT/WEBMAIL_PORT/DB_UI_PORT in ignored `.local/docker.env`,
 then run `up` again. Do not change stored database/application/login secrets for an
 existing volume: initialization deliberately never resets accounts or passwords.
 The root `.env` is not read by Compose; the wrapper always supplies `--env-file`.
@@ -49,10 +51,11 @@ or local Linux socket rather than a production/SSH Docker context.
 | mailpit | Mailpit 1.32.0, capture-only SMTP on the internal network and loopback UI |
 | mailserver | Official GreenMail 2.1.15 image, authenticated per-address SMTP/IMAP test mailboxes |
 | webmail | Official Roundcube 1.7.6 Apache image, Elastic webmail interface and private mailbox logins |
+| adminer | Official Adminer 6.3.0 image, PostgreSQL browser/SQL console for the interactive local stack |
 | bootstrap | One-shot Alembic migration, idempotent fictional seed and first job |
 | app | Python 3.13.18 / FastAPI as UID 10001, read-only filesystem and HTTP health probe |
 | worker | Existing `run_job` every 30 seconds locally; successful-job heartbeat and graceful shutdown |
-| gateway | Local-only TCP forwarding for app/Mailpit HTTP; the only service on a host-access bridge |
+| gateway | Local HTTP forwarding for app, Mailpit, Roundcube and Adminer; the only service on a host-access bridge |
 | tests | Separate test image and disposable PostgreSQL/Mailpit project; no host ports |
 
 Compose waits for PostgreSQL/Mailpit health, then successful bootstrap completion,
@@ -77,10 +80,33 @@ python scripts/dev.py test
 specified immutable image digests and rebuilds without erasing the database. Review
 and update the version/digest pairs explicitly when upgrading dependencies. Source changes are
 reproducibly copied into images; there are no host-code/credential directory mounts.
-`up` and `smoke` verify both published ports from the host, so healthy containers
+`up` and `smoke` verify all four published ports from the host, so healthy containers
 alone cannot hide a missing browser connection. `smoke` also checks the interactive stack's HTTP, language pages, cookies, same-origin
 checks, both roles and recent worker status. It does not confirm or delete duties.
 `config` performs Compose's validation without printing interpolated secrets.
+
+## PostgreSQL browser access
+
+The existing [Adminer Docker image](https://hub.docker.com/_/adminer) runs only in
+the interactive local Compose overlay. Open
+[the prefilled PostgreSQL login](http://127.0.0.1:8081/?pgsql=db&username=sdw&db=sdw_local):
+
+| Field | Value |
+| --- | --- |
+| System | PostgreSQL |
+| Server | db |
+| Username | sdw |
+| Database | sdw_local |
+| Password | LOCAL_DB_PASSWORD from ignored .local/docker.env |
+
+This is the same local database used by the scheduling app, so table browsing,
+SQL queries and edits work directly against the test data. There is no additional
+Adminer account or password. The credentials command includes connection details
+and points to the saved password without printing the database secret.
+
+Adminer joins only the internal network and cannot reach the internet. Its HTTP
+interface is forwarded by the gateway to 127.0.0.1 only; PostgreSQL port 5432 remains
+unpublished. The disposable test stack has no Adminer service or browser port.
 
 ## Mail and invitation testing
 

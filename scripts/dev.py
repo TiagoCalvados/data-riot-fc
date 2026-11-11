@@ -35,25 +35,25 @@ def mail_accounts():
     return json.loads((ROOT/'dev/mailboxes.json').read_text(encoding='utf-8'))
 
 
-def mail_defaults(data, webmail_port=8080):
+def config_defaults(data, webmail_port=8080, db_ui_port=8081):
     password = data.get('LOCAL_MAIL_PASSWORD') or secrets.token_urlsafe(18)
     addresses = ['beheer@example.invalid', 'kantine@example.invalid']
     addresses += [f'demo{index}@example.invalid' for index in range(18)]
     addresses += [account['email'] for account in mail_accounts()]
     users = ','.join(address.replace('@', ':'+password+'@', 1) for address in addresses)
-    return {'WEBMAIL_PORT': str(webmail_port), 'LOCAL_MAIL_PASSWORD': password,
+    return {'WEBMAIL_PORT': str(webmail_port), 'DB_UI_PORT': str(db_ui_port), 'LOCAL_MAIL_PASSWORD': password,
             'LOCAL_MAIL_USERS': users, 'LOCAL_WEBMAIL_KEY': secrets.token_urlsafe(18)}
 
 
 def validate_ports(data):
-    ports = [int(data[key]) for key in ('APP_PORT', 'MAIL_PORT', 'WEBMAIL_PORT')]
-    if len(set(ports)) != 3 or not all(1024 <= port <= 65535 for port in ports):
-        raise ValueError('Choose distinct unprivileged app/mail/webmail ports from 1024 through 65535')
+    ports = [int(data[key]) for key in ('APP_PORT', 'MAIL_PORT', 'WEBMAIL_PORT', 'DB_UI_PORT')]
+    if len(set(ports)) != 4 or not all(1024 <= port <= 65535 for port in ports):
+        raise ValueError('Choose distinct unprivileged app/mail/webmail/database-UI ports from 1024 through 65535')
 
 
-def complete_mail_config(path, webmail_port=8080):
+def complete_config(path, webmail_port=8080, db_ui_port=8081):
     data = read_config(path)
-    missing = {key: value for key, value in mail_defaults(data, webmail_port).items() if key not in data}
+    missing = {key: value for key, value in config_defaults(data, webmail_port, db_ui_port).items() if key not in data}
     validate_ports({**data, **missing})
     if missing:
         with path.open('a', encoding='utf-8', newline='\n') as output:
@@ -61,12 +61,12 @@ def complete_mail_config(path, webmail_port=8080):
             output.writelines(f'{key}={value}\n' for key, value in missing.items())
 
 
-def generate_config(path, *, test=False, app_port=8000, mail_port=8025, webmail_port=8080):
+def generate_config(path, *, test=False, app_port=8000, mail_port=8025, webmail_port=8080, db_ui_port=8081):
     data = {'LOCAL_DB_PASSWORD': secrets.token_urlsafe(32), 'LOCAL_SECRET_KEY': secrets.token_urlsafe(48),
             'LOCAL_ADMIN_PASSWORD': secrets.token_urlsafe(18), 'LOCAL_PARENT_PASSWORD': secrets.token_urlsafe(18),
             'LOCAL_DB_NAME': 'sdw_test' if test else 'sdw_local', 'APP_PORT': str(app_port),
             'MAIL_PORT': str(mail_port), 'WORKER_INTERVAL_SECONDS': '3' if test else '30'}
-    data.update(mail_defaults(data, webmail_port))
+    data.update(config_defaults(data, webmail_port, db_ui_port))
     validate_ports(data)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation prevents normal startup from replacing persisted credentials.
@@ -146,7 +146,7 @@ def start(command, *, local=False):
 
 def check_local_http(data):
     for name, key, path in (('app', 'APP_PORT', '/health'), ('captured mail', 'MAIL_PORT', '/readyz'),
-                            ('webmail', 'WEBMAIL_PORT', '/')):
+                            ('webmail', 'WEBMAIL_PORT', '/'), ('database UI', 'DB_UI_PORT', '/')):
         connection = HTTPConnection('127.0.0.1', int(data[key]), timeout=5)
         try:
             connection.request('GET', path)
@@ -158,7 +158,7 @@ def check_local_http(data):
             raise RuntimeError('Local '+name+' port is not reachable from the host; inspect dev.py status/logs') from None
         finally:
             connection.close()
-    print('Host app, captured-mail and webmail ports verified')
+    print('Host app, captured-mail, webmail and database-UI ports verified')
 
 
 def isolated_tests(docker):
@@ -182,14 +182,16 @@ def main(argv=None):
     parser.add_argument('--app-port', type=int, default=8000)
     parser.add_argument('--mail-port', type=int, default=8025)
     parser.add_argument('--webmail-port', type=int, default=8080)
+    parser.add_argument('--db-ui-port', type=int, default=8081)
     parser.add_argument('--confirm-delete-local-data', action='store_true')
     args = parser.parse_args(argv)
     if args.command == 'reset' and not args.confirm_delete_local_data:
         parser.error('Reset deletes only the local development database volume. Add --confirm-delete-local-data explicitly.')
     if args.command in ('init', 'up', 'rebuild', 'credentials', 'config') and not CONFIG.exists():
-        generate_config(CONFIG, app_port=args.app_port, mail_port=args.mail_port, webmail_port=args.webmail_port)
+        generate_config(CONFIG, app_port=args.app_port, mail_port=args.mail_port,
+                        webmail_port=args.webmail_port, db_ui_port=args.db_ui_port)
     if CONFIG.exists():
-        complete_mail_config(CONFIG, args.webmail_port)
+        complete_config(CONFIG, args.webmail_port, args.db_ui_port)
     if args.command == 'init':
         print('Local config retained at .local/docker.env. Run python scripts/dev.py up next.')
         return
@@ -203,6 +205,9 @@ def main(argv=None):
         print('Webmail: http://127.0.0.1:'+data['WEBMAIL_PORT'])
         print('Webmail login: full email address; shared test-mail password: '+data['LOCAL_MAIL_PASSWORD'])
         print('Existing parent mailbox: demo0@example.invalid; coordinator: beheer@example.invalid')
+        print('Database UI: http://127.0.0.1:'+data['DB_UI_PORT'])
+        print('Database login: PostgreSQL / server db / user sdw / database '+data['LOCAL_DB_NAME'])
+        print('Database password: LOCAL_DB_PASSWORD in .local/docker.env')
         return
     docker = docker_binary()
     if args.command == 'config':
@@ -227,12 +232,13 @@ def main(argv=None):
         print('App: http://127.0.0.1:'+data['APP_PORT'])
         print('Captured mail: http://127.0.0.1:'+data['MAIL_PORT'])
         print('Webmail: http://127.0.0.1:'+data['WEBMAIL_PORT'])
+        print('Database UI: http://127.0.0.1:'+data['DB_UI_PORT'])
         print('Login details: python scripts/dev.py credentials')
     elif args.command == 'down':
         execute([*command, 'down', '--remove-orphans'])
     elif args.command == 'logs':
         execute([*command, 'logs', '--tail', '100', '--follow', 'app', 'worker', 'bootstrap', 'mailpit',
-                 'mailserver', 'webmail', 'gateway'])
+                 'mailserver', 'webmail', 'adminer', 'gateway'])
     elif args.command == 'status':
         execute([*command, 'ps', '--all'])
     elif args.command == 'smoke':

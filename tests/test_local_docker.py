@@ -115,6 +115,9 @@ def test_compose_separates_persistent_dev_from_disposable_tests():
     assert all(port.startswith('127.0.0.1:') for port in gateway['ports'])
     assert set(gateway['networks']) == {'local', 'host_access'}
     assert local['networks']['host_access'] == {}
+    assert local['services']['adminer']['networks'] == ['local']
+    assert 'ports' not in local['services']['adminer']
+    assert 'adminer' not in test['services'] and 'adminer' not in base['services']
     assert all('ports' not in local['services'].get(name, {}) for name in ('app', 'mailpit', 'db'))
     assert all(service.get('networks') == ['local'] for service in base['services'].values())
     assert 'gateway' not in test['services']
@@ -133,7 +136,7 @@ def test_host_helper_retains_config_and_reset_requires_explicit_flag(tmp_path):
     assert len(generated['LOCAL_SECRET_KEY']) >= 32
     assert module.read_config(config) == generated
     assert 'anna:' in generated['LOCAL_MAIL_USERS']
-    module.complete_mail_config(config)
+    module.complete_config(config)
     assert module.read_config(config) == generated
     with pytest.raises(FileExistsError): module.generate_config(config)
     test_command = module.compose_command('docker', config, project='sdw-kantine-test-unique', test=True)
@@ -151,12 +154,15 @@ def test_mail_upgrade_keeps_existing_app_and_mail_credentials(tmp_path):
     spec.loader.exec_module(module)
     config = tmp_path/'old.env'
     config.write_text('LOCAL_ADMIN_PASSWORD=keep-admin\nLOCAL_PARENT_PASSWORD=keep-parent\nAPP_PORT=8000\nMAIL_PORT=8025\n')
-    module.complete_mail_config(config)
+    module.complete_config(config)
     updated = module.read_config(config)
     assert updated['LOCAL_ADMIN_PASSWORD'] == 'keep-admin' and updated['LOCAL_PARENT_PASSWORD'] == 'keep-parent'
     assert updated['WEBMAIL_PORT'] == '8080'
-    module.complete_mail_config(config)
+    assert updated['DB_UI_PORT'] == '8081'
+    module.complete_config(config)
     assert module.read_config(config) == updated
+    with pytest.raises(ValueError):
+        module.validate_ports({**updated, 'DB_UI_PORT': updated['APP_PORT']})
 
 
 def test_optional_build_ca_uses_only_the_matching_project_overlay(tmp_path, monkeypatch):

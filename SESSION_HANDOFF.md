@@ -411,3 +411,29 @@ cookies and recent job status. All seven persistent services are healthy and
 bootstrap exited successfully. Local data/passwords were preserved; configuration
 was extended with the upstream mail defaults. Credentials remain available via
 `python scripts/dev.py credentials`. No hosted deployment was performed.
+
+## Local PostgreSQL web UI — 11 November 2026
+
+Version 0.1.6 adds the official Adminer 6.3.0 standalone image, pinned by verified
+multi-platform digest, only to the interactive Compose overlay. It uses the
+existing PostgreSQL credentials: system PostgreSQL, server db, user sdw, database
+sdw_local; the password stays in LOCAL_DB_PASSWORD in ignored .local/docker.env.
+No extra account/password is created and the credentials command prints connection
+details plus the password's file location without exposing the database secret.
+
+Adminer is at http://127.0.0.1:8081. The local gateway forwards HTTP to its internal
+port 8080. Adminer joins only the internal network, has a read-only filesystem and
+temporary session storage, and publishes no direct ports. PostgreSQL port 5432
+remains unpublished. Actual Adminer-container probes confirmed no default route,
+blocked external IPv4/IPv6 and blocked external DNS. The existing app/mail URLs
+and stored credentials are retained. DB_UI_PORT is appended to older config; all
+four browser ports are checked for collisions and verified from the host.
+
+The browser successfully logged in and displayed all 21 public-schema tables
+(20 app tables plus Alembic). It remains open as a deliverable. No database rows
+were edited in this check. Screenshot: ignored .local/postgresql-ui.jpg.
+All 79 regression tests and the existing isolated PostgreSQL/mail/webmail/worker
+integration flow passed; temporary test resources were cleaned up. No Adminer is
+started in that disposable stack. This change affects local development only.
+The other editor's 0.1.5 build-CA support was integrated and preserved before the
+final 0.1.6 build/test run; machines without the optional CA file still build normally.
