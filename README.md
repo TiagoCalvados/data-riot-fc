@@ -1,6 +1,6 @@
 # SDW · De kantine
 
-Application version **0.1.3** is defined in `app/__init__.py` and used by FastAPI.
+Application version **0.1.4** is defined in `app/__init__.py` and used by FastAPI.
 Follow `AGENTS.md`: increase the patch version for each change and start every
 commit message with that version before committing and pushing.
 
@@ -58,7 +58,7 @@ with `scripts/build_icons.ps1`; regenerate English assets with `scripts/build_lo
 
 ## Local development
 
-For a complete isolated PostgreSQL + scheduler + captured-email environment, see
+For a complete isolated PostgreSQL + scheduler + SMTP/IMAP + Roundcube webmail environment, see
 [the Docker development guide](dev/README.md). On PowerShell or a Unix shell:
 
 ```text
@@ -67,8 +67,13 @@ python scripts/dev.py credentials
 python scripts/dev.py test
 ```
 
-The app opens at http://127.0.0.1:8000 and the local Mailpit inbox at
-http://127.0.0.1:8025. Docker generates its own ignored configuration and fictional
+The app opens at http://127.0.0.1:8000, Roundcube webmail at http://127.0.0.1:8080,
+and the Mailpit message inspector at http://127.0.0.1:8025. Named test inboxes include
+`anna@example.invalid` through the six accounts listed in the guide; their app
+logins are `anna.test`, `bram.test`, `cem.test`, `dana.test`, `els.test`, `finn.test`.
+The credentials command shows app and webmail passwords separately. Mail services
+have no internet route and browser ports bind only to loopback. Docker generates
+its own ignored configuration and fictional
 data; it does not use the root `.env`, existing SQLite data or alwaysdata secrets.
 The test command uses a disposable separate PostgreSQL stack. The non-Docker
 SQLite workflow below remains available.

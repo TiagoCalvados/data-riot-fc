@@ -1,6 +1,8 @@
 services:
   db:
     volumes: [postgres_data:/var/lib/postgresql/data]
+  webmail:
+    volumes: [roundcube_data:/var/roundcube/db]
   # Docker does not publish ports from containers on internal-only networks.
   # Only this fixed-target forwarder joins a normal bridge; services stay isolated.
   gateway:
@@ -11,9 +13,11 @@ services:
     depends_on:
       app: {condition: service_healthy}
       mailpit: {condition: service_healthy}
+      webmail: {condition: service_healthy}
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
       - "127.0.0.1:${MAIL_PORT:-8025}:8025"
+      - "127.0.0.1:${WEBMAIL_PORT:-8080}:8080"
     init: true
     read_only: true
     tmpfs: [/tmp]
@@ -33,3 +37,4 @@ networks:
 
 volumes:
   postgres_data:
+  roundcube_data:

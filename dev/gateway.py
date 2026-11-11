@@ -34,9 +34,10 @@ async def forward(reader, writer, host, port):
 async def main():
     app = await asyncio.start_server(lambda r, w: forward(r, w, 'app', 8000), '0.0.0.0', 8000)
     mail = await asyncio.start_server(lambda r, w: forward(r, w, 'mailpit', 8025), '0.0.0.0', 8025)
-    print('Local gateway ready: app 8000; captured mail 8025', flush=True)
-    async with app, mail:
-        await asyncio.gather(app.serve_forever(), mail.serve_forever())
+    webmail = await asyncio.start_server(lambda r, w: forward(r, w, 'webmail', 80), '0.0.0.0', 8080)
+    print('Local gateway ready: app 8000; captured mail 8025; webmail 8080', flush=True)
+    async with app, mail, webmail:
+        await asyncio.gather(app.serve_forever(), mail.serve_forever(), webmail.serve_forever())
 
 
 if __name__ == '__main__':

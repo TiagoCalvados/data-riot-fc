@@ -8,10 +8,14 @@ from sqlalchemy import select, func
 from dev.common import require_local_database
 from app.db import SessionLocal
 from app.models import JobRun, Shift
+from dev.mailcheck import inbox, check_webmail
 
 
 def run(*, exercise_response=False):
     config = require_local_database(test_only=exercise_response)
+    check_webmail('demo0@example.invalid')
+    parent_messages = inbox('demo0@example.invalid')
+    assert all('demo0@example.invalid' in str(message['To']) for message in parent_messages)
     with httpx.Client(base_url='http://app:8000', headers={'Origin': config.base_url}, timeout=10) as admin:
         assert admin.get('/health').json() == {'status': 'ok'}
         for language in ('nl', 'en'):
@@ -52,11 +56,15 @@ def run(*, exercise_response=False):
                             chosen = lookup.json()['id']
                             break
                     assert chosen is not None, 'No pending captured invitation for ouder.test'
+                    assert any(match[1] in message.get_body(preferencelist=('plain',)).get_content()
+                               for message in parent_messages), 'Invitation absent from the parent IMAP mailbox'
+                    assert not any(match[1] in message.get_body(preferencelist=('plain',)).get_content()
+                                   for message in inbox('demo1@example.invalid')), 'Mailbox isolation failed'
                     assert parent.post(f'/api/invitations/{chosen}/respond', json={'decision': 'confirmed'},
                                        headers={'X-CSRF-Token': parent_csrf}).status_code == 200
                     after = parent.get('/api/dashboard').json()
                     assert any(i['id'] == chosen and i['state'] == 'confirmed' for s in after['shifts'] for i in s['invitations'])
-                print('Mailpit capture, authenticated invitation link and explicit response passed')
+                print('SMTP delivery, private IMAP inbox, Roundcube login, invitation link and explicit response passed')
             assert parent.post('/api/logout', json={}, headers={'X-CSRF-Token': parent_csrf}).status_code == 200
         assert admin.post('/api/logout', json={}, headers={'X-CSRF-Token': csrf}).status_code == 200
     if exercise_response:

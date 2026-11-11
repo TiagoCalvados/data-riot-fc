@@ -31,13 +31,43 @@ def docker_binary():
     raise RuntimeError('Docker CLI is missing. Install/start Docker Desktop with Linux containers; see dev/README.md.')
 
 
-def generate_config(path, *, test=False, app_port=8000, mail_port=8025):
-    if not (1024 <= app_port <= 65535 and 1024 <= mail_port <= 65535 and app_port != mail_port):
-        raise ValueError('Choose distinct unprivileged app/mail ports from 1024 through 65535')
+def mail_accounts():
+    return json.loads((ROOT/'dev/mailboxes.json').read_text(encoding='utf-8'))
+
+
+def mail_defaults(data, webmail_port=8080):
+    password = data.get('LOCAL_MAIL_PASSWORD') or secrets.token_urlsafe(18)
+    addresses = ['beheer@example.invalid', 'kantine@example.invalid']
+    addresses += [f'demo{index}@example.invalid' for index in range(18)]
+    addresses += [account['email'] for account in mail_accounts()]
+    users = ','.join(address.replace('@', ':'+password+'@', 1) for address in addresses)
+    return {'WEBMAIL_PORT': str(webmail_port), 'LOCAL_MAIL_PASSWORD': password,
+            'LOCAL_MAIL_USERS': users, 'LOCAL_WEBMAIL_KEY': secrets.token_urlsafe(18)}
+
+
+def validate_ports(data):
+    ports = [int(data[key]) for key in ('APP_PORT', 'MAIL_PORT', 'WEBMAIL_PORT')]
+    if len(set(ports)) != 3 or not all(1024 <= port <= 65535 for port in ports):
+        raise ValueError('Choose distinct unprivileged app/mail/webmail ports from 1024 through 65535')
+
+
+def complete_mail_config(path, webmail_port=8080):
+    data = read_config(path)
+    missing = {key: value for key, value in mail_defaults(data, webmail_port).items() if key not in data}
+    validate_ports({**data, **missing})
+    if missing:
+        with path.open('a', encoding='utf-8', newline='\n') as output:
+            output.write('\n')
+            output.writelines(f'{key}={value}\n' for key, value in missing.items())
+
+
+def generate_config(path, *, test=False, app_port=8000, mail_port=8025, webmail_port=8080):
     data = {'LOCAL_DB_PASSWORD': secrets.token_urlsafe(32), 'LOCAL_SECRET_KEY': secrets.token_urlsafe(48),
             'LOCAL_ADMIN_PASSWORD': secrets.token_urlsafe(18), 'LOCAL_PARENT_PASSWORD': secrets.token_urlsafe(18),
             'LOCAL_DB_NAME': 'sdw_test' if test else 'sdw_local', 'APP_PORT': str(app_port),
             'MAIL_PORT': str(mail_port), 'WORKER_INTERVAL_SECONDS': '3' if test else '30'}
+    data.update(mail_defaults(data, webmail_port))
+    validate_ports(data)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation prevents normal startup from replacing persisted credentials.
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -111,7 +141,8 @@ def start(command, *, local=False):
 
 
 def check_local_http(data):
-    for name, key, path in (('app', 'APP_PORT', '/health'), ('captured mail', 'MAIL_PORT', '/readyz')):
+    for name, key, path in (('app', 'APP_PORT', '/health'), ('captured mail', 'MAIL_PORT', '/readyz'),
+                            ('webmail', 'WEBMAIL_PORT', '/')):
         connection = HTTPConnection('127.0.0.1', int(data[key]), timeout=5)
         try:
             connection.request('GET', path)
@@ -123,7 +154,7 @@ def check_local_http(data):
             raise RuntimeError('Local '+name+' port is not reachable from the host; inspect dev.py status/logs') from None
         finally:
             connection.close()
-    print('Host app and captured-mail ports verified')
+    print('Host app, captured-mail and webmail ports verified')
 
 
 def isolated_tests(docker):
@@ -146,12 +177,15 @@ def main(argv=None):
                                            'rebuild', 'test', 'smoke', 'credentials', 'reset', 'config'))
     parser.add_argument('--app-port', type=int, default=8000)
     parser.add_argument('--mail-port', type=int, default=8025)
+    parser.add_argument('--webmail-port', type=int, default=8080)
     parser.add_argument('--confirm-delete-local-data', action='store_true')
     args = parser.parse_args(argv)
     if args.command == 'reset' and not args.confirm_delete_local_data:
         parser.error('Reset deletes only the local development database volume. Add --confirm-delete-local-data explicitly.')
     if args.command in ('init', 'up', 'rebuild', 'credentials', 'config') and not CONFIG.exists():
-        generate_config(CONFIG, app_port=args.app_port, mail_port=args.mail_port)
+        generate_config(CONFIG, app_port=args.app_port, mail_port=args.mail_port, webmail_port=args.webmail_port)
+    if CONFIG.exists():
+        complete_mail_config(CONFIG, args.webmail_port)
     if args.command == 'init':
         print('Local config retained at .local/docker.env. Run python scripts/dev.py up next.')
         return
@@ -159,6 +193,12 @@ def main(argv=None):
         data = read_config(CONFIG)
         print('Fictional coordinator: beheer.test / '+data['LOCAL_ADMIN_PASSWORD'])
         print('Fictional parent: ouder.test / '+data['LOCAL_PARENT_PASSWORD'])
+        print('Named parent app password: '+data['LOCAL_PARENT_PASSWORD'])
+        for account in mail_accounts():
+            print(account['username']+' -> '+account['email'])
+        print('Webmail: http://127.0.0.1:'+data['WEBMAIL_PORT'])
+        print('Webmail login: full email address; shared test-mail password: '+data['LOCAL_MAIL_PASSWORD'])
+        print('Existing parent mailbox: demo0@example.invalid; coordinator: beheer@example.invalid')
         return
     docker = docker_binary()
     if args.command == 'config':
@@ -182,11 +222,13 @@ def main(argv=None):
         check_local_http(data)
         print('App: http://127.0.0.1:'+data['APP_PORT'])
         print('Captured mail: http://127.0.0.1:'+data['MAIL_PORT'])
+        print('Webmail: http://127.0.0.1:'+data['WEBMAIL_PORT'])
         print('Login details: python scripts/dev.py credentials')
     elif args.command == 'down':
         execute([*command, 'down', '--remove-orphans'])
     elif args.command == 'logs':
-        execute([*command, 'logs', '--tail', '100', '--follow', 'app', 'worker', 'bootstrap', 'mailpit', 'gateway'])
+        execute([*command, 'logs', '--tail', '100', '--follow', 'app', 'worker', 'bootstrap', 'mailpit',
+                 'mailserver', 'webmail', 'gateway'])
     elif args.command == 'status':
         execute([*command, 'ps', '--all'])
     elif args.command == 'smoke':

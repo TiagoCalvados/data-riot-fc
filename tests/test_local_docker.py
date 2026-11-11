@@ -105,6 +105,9 @@ def test_compose_separates_persistent_dev_from_disposable_tests():
     assert base['services']['worker']['command'] == ['python', '-m', 'dev.worker']
     assert base['services']['app']['environment']['LOCAL_MAIL_CAPTURE'] == 'true'
     assert base['services']['app']['environment']['SPORTLINK_CLIENT_ID'] == ''
+    assert base['services']['mailpit']['environment']['MP_SMTP_RELAY_HOST'] == 'mailserver'
+    assert base['services']['webmail']['environment']['ROUNDCUBEMAIL_DEFAULT_HOST'] == 'mailserver'
+    assert '-Dgreenmail.auth.disabled' not in base['services']['mailserver']['command']
     assert base['networks']['local']['internal'] is True
     assert 'volumes' not in base['services']['db'] and 'ports' not in base['services']['app']
     assert local['services']['db']['volumes'] == ['postgres_data:/var/lib/postgresql/data']
@@ -129,6 +132,9 @@ def test_host_helper_retains_config_and_reset_requires_explicit_flag(tmp_path):
     generated = module.generate_config(config)
     assert len(generated['LOCAL_SECRET_KEY']) >= 32
     assert module.read_config(config) == generated
+    assert 'anna:' in generated['LOCAL_MAIL_USERS']
+    module.complete_mail_config(config)
+    assert module.read_config(config) == generated
     with pytest.raises(FileExistsError): module.generate_config(config)
     test_command = module.compose_command('docker', config, project='sdw-kantine-test-unique', test=True)
     assert 'sdw-kantine-test-unique' in test_command and str(ROOT/'compose.test.yaml') in test_command
@@ -137,6 +143,33 @@ def test_host_helper_retains_config_and_reset_requires_explicit_flag(tmp_path):
     assert not module.local_engine_endpoint('ssh://production.example.org')
     assert not module.local_engine_endpoint('tcp://production.example.org:2376')
     with pytest.raises(SystemExit): module.main(['reset'])
+
+
+def test_mail_upgrade_keeps_existing_app_and_mail_credentials(tmp_path):
+    spec = importlib.util.spec_from_file_location('sdw_dev_upgrade', ROOT/'scripts/dev.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    config = tmp_path/'old.env'
+    config.write_text('LOCAL_ADMIN_PASSWORD=keep-admin\nLOCAL_PARENT_PASSWORD=keep-parent\nAPP_PORT=8000\nMAIL_PORT=8025\n')
+    module.complete_mail_config(config)
+    updated = module.read_config(config)
+    assert updated['LOCAL_ADMIN_PASSWORD'] == 'keep-admin' and updated['LOCAL_PARENT_PASSWORD'] == 'keep-parent'
+    assert updated['WEBMAIL_PORT'] == '8080'
+    module.complete_mail_config(config)
+    assert module.read_config(config) == updated
+
+
+def test_named_mail_parents_preserve_passwords_on_repeat(db, monkeypatch):
+    from dev.bootstrap import ensure_mail_parents
+    from app.security import verify_password
+    monkeypatch.setenv('LOCAL_PARENT_PASSWORD', 'first-test-password')
+    ensure_mail_parents(db)
+    anna = db.scalar(select(User).where(User.username == 'anna.test'))
+    assert anna.email == 'anna@example.invalid' and anna.is_demo
+    monkeypatch.setenv('LOCAL_PARENT_PASSWORD', 'another-test-password')
+    ensure_mail_parents(db)
+    assert db.scalar(select(func.count()).select_from(User)) == 6
+    assert verify_password(anna.password_hash, 'first-test-password')
 
 
 def test_response_smoke_cannot_target_interactive_or_hosted_database(monkeypatch):

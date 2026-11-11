@@ -27,13 +27,14 @@ The wrapper finds Docker Desktop's standard per-user/all-user binary paths even
 when the current terminal has not refreshed its PATH.
 
 Open **http://127.0.0.1:8000** for the app and **http://127.0.0.1:8025** for captured
-email. Use that exact app hostname: the app checks request origins against BASE_URL.
+email. Open **http://127.0.0.1:8080** for Roundcube webmail. Use that exact app
+hostname: the app checks request origins against BASE_URL.
 The coordinator is `beheer.test`; the parent is `ouder.test`. Random passwords are
 shown only by the explicit `credentials` command. All other seeded accounts and
 recipients are fictional. Credentials are stable across restarts/rebuilds.
 
-For different ports, run `init --app-port 8080 --mail-port 8026` before the first start.
-After initialization, edit only APP_PORT/MAIL_PORT in ignored `.local/docker.env`,
+For different ports, run `init --app-port 8001 --mail-port 8026 --webmail-port 8081` before the first start.
+After initialization, edit only APP_PORT/MAIL_PORT/WEBMAIL_PORT in ignored `.local/docker.env`,
 then run `up` again. Do not change stored database/application/login secrets for an
 existing volume: initialization deliberately never resets accounts or passwords.
 The root `.env` is not read by Compose; the wrapper always supplies `--env-file`.
@@ -46,6 +47,8 @@ or local Linux socket rather than a production/SSH Docker context.
 | --- | --- |
 | db | PostgreSQL 17.11, readiness check and project-scoped persistent dev volume |
 | mailpit | Mailpit 1.32.0, capture-only SMTP on the internal network and loopback UI |
+| mailserver | Official GreenMail 2.1.15 image, authenticated per-address SMTP/IMAP test mailboxes |
+| webmail | Official Roundcube 1.7.6 Apache image, Elastic webmail interface and private mailbox logins |
 | bootstrap | One-shot Alembic migration, idempotent fictional seed and first job |
 | app | Python 3.13.18 / FastAPI as UID 10001, read-only filesystem and HTTP health probe |
 | worker | Existing `run_job` every 30 seconds locally; successful-job heartbeat and graceful shutdown |
@@ -55,9 +58,10 @@ or local Linux socket rather than a production/SSH Docker context.
 Compose waits for PostgreSQL/Mailpit health, then successful bootstrap completion,
 then starts app and worker, followed by the local HTTP gateway. Migrations and seed are not run in every web worker.
 Existing PostgreSQL advisory locks still serialize jobs and coordinator changes.
-Normal startup and shutdown retain the PostgreSQL volume. The Mailpit inbox is
-deliberately temporary and clears when its container is replaced/stopped; delivered
-invitation/response/audit history remains in PostgreSQL.
+Normal startup and shutdown retain PostgreSQL and Roundcube preferences. Mailpit
+capture and GreenMail messages are deliberately temporary: recreating/stopping those
+containers clears their messages; app invitation/response/audit history remains in
+PostgreSQL. App and mailbox credentials stay stable in `.local/docker.env`.
 
 ```text
 python scripts/dev.py status
@@ -93,9 +97,40 @@ is under example.invalid. Only demo users with example.invalid recipient address
 can enter that transport. Production SMTP's verified TLS/authentication and test
 address blocking remain unchanged when the option is false (the default).
 
-Mailpit has no relay configuration, no SMTP host port, and no external network route.
-Open the inbox, find the invitation to `demo0@example.invalid`, follow its local link,
-sign in as `ouder.test` and explicitly accept/decline. GET never accepts a duty. The
+Mailpit captures each app message and relays `@example.invalid` recipients only to
+the internal GreenMail service. Roundcube reads the individual IMAP inbox and sends
+through the same local SMTP route. No mail service has an external network route;
+SMTP, IMAP and server administration ports are not published. All three browser
+interfaces are bound to host loopback through the fixed-target gateway. The images
+are pulled during setup; running mail services cannot reach the internet.
+
+The six named local parent accounts below are added idempotently to Docker's demo
+database; normal planning sends them real local test invitations. Existing parent
+accounts, passwords and invitation history are preserved.
+
+| App login | Webmail login / address | Language |
+| --- | --- | --- |
+| anna.test | anna@example.invalid | Dutch |
+| bram.test | bram@example.invalid | Dutch |
+| cem.test | cem@example.invalid | Dutch |
+| dana.test | dana@example.invalid | English |
+| els.test | els@example.invalid | English |
+| finn.test | finn@example.invalid | English |
+| ouder.test | demo0@example.invalid | Existing parent's preference |
+| beheer.test | beheer@example.invalid | Coordinator |
+
+`python scripts/dev.py credentials` displays the app passwords and a separate
+generated test-mail password. Use the full email address and that mail password in
+Roundcube. All six named app logins use the existing parent test password. Mailboxes
+also exist for `kantine@example.invalid` and `demo1@example.invalid` through
+`demo17@example.invalid`; only the two original and six named app accounts have
+documented app passwords. The address/name list is in `dev/mailboxes.json`.
+
+To test the full circle, log into Roundcube as `anna@example.invalid` (or another
+named parent), open an invitation, follow its local app link, sign in as `anna.test`
+and explicitly accept/decline. The app displays the saved response and the
+coordinator sees the same result. You can also compose and receive local messages
+between these inboxes using Roundcube. GET never accepts a duty. The
 usual 48-hour maximum reply period begins only after Mailpit accepts the message;
 decline/expiry/fairness/spacing behavior remains the existing business logic.
 
@@ -105,7 +140,8 @@ decline/expiry/fairness/spacing behavior remains the existing business logic.
 with a fresh tmpfs PostgreSQL database named `sdw_test`, fresh credentials, a separate
 Mailpit inbox and no published ports. It runs the entire unit suite, repeats real
 PostgreSQL migration/bootstrap twice, checks login/roles/cookies/origins, finds a
-captured invitation through Mailpit's API, follows its authenticated link, submits
+captured invitation through Mailpit's API and the recipient's private IMAP inbox,
+checks Roundcube login and mailbox isolation, follows its authenticated link, submits
 a response, and waits for the independent worker to advance without replacing
 shifts. The response test refuses to run against `sdw_local` or another database.
 A `finally` cleanup removes only that random test project, volumes and local image
@@ -134,8 +170,8 @@ local test login passwords. It does not prune Docker globally or touch alwaysdat
   and inbox are bound to 127.0.0.1, never all host interfaces by default.
 - Docker does not publish ports for containers attached only to an internal network.
   The local gateway joins a separate normal bridge and forwards only app/Mailpit
-  HTTP. App, worker, PostgreSQL and Mailpit remain on the internal network without
-  an external route; SMTP and database ports are not published. The gateway uses
+  HTTP. App, worker, PostgreSQL, Mailpit, GreenMail and Roundcube remain on the internal network without
+  an external route; SMTP, IMAP and database ports are not published. The gateway uses
   the existing Python runtime image and preserves streaming/connection upgrades.
 - Startup failure: `doctor`, `status`, then `logs`; fix the failing dependency before
   retrying `up`. A failed migration prevents app/worker from starting.
@@ -175,3 +211,12 @@ References: [Compose startup conditions](https://docs.docker.com/compose/how-tos
 [Mailpit Docker/readiness](https://mailpit.axllent.org/docs/install/docker/),
 [Mailpit runtime options](https://mailpit.axllent.org/docs/configuration/runtime-options/),
 [PostgreSQL image](https://hub.docker.com/_/postgres), [Python image](https://hub.docker.com/_/python).
+
+Version 0.1.4 adds the official [GreenMail Docker server](https://greenmail-mail-test.github.io/greenmail/)
+and [Roundcube Docker client](https://github.com/roundcube/roundcubemail-docker).
+Mailpit's [built-in SMTP relay](https://mailpit.axllent.org/docs/configuration/smtp-relay/)
+routes messages to GreenMail only. Verification: all 78 container tests and the
+PostgreSQL/SMTP/IMAP/Roundcube invitation-response flow passed. A browser check
+confirmed Anna's invitation and delivered an Anna-to-Bram message using Roundcube.
+The three mail services have only the internal network and no published protocol
+ports; runtime probes found no default route and blocked external IPv4, IPv6 and DNS.

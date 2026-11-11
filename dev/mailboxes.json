@@ -1,0 +1,8 @@
+[
+  {"username": "anna.test", "name": "Anna Visser", "email": "anna@example.invalid", "language": "nl"},
+  {"username": "bram.test", "name": "Bram de Vries", "email": "bram@example.invalid", "language": "nl"},
+  {"username": "cem.test", "name": "Cem Yilmaz", "email": "cem@example.invalid", "language": "nl"},
+  {"username": "dana.test", "name": "Dana Bakker", "email": "dana@example.invalid", "language": "en"},
+  {"username": "els.test", "name": "Els Jansen", "email": "els@example.invalid", "language": "en"},
+  {"username": "finn.test", "name": "Finn Smit", "email": "finn@example.invalid", "language": "en"}
+]

@@ -341,3 +341,42 @@ bootstrap repeatability, Mailpit capture, an authenticated invitation response a
 the independent worker heartbeat passed. Test resources were cleaned up by the
 wrapper. The prior Python server was stopped to free port 8000. SQLite demo files
 were retained. Hosted data and deployment were not involved.
+
+## Individual local test mailboxes and Roundcube — 11 November 2026
+
+Version 0.1.4 adds existing off-the-shelf containers, not a custom webmail app:
+GreenMail 2.1.15 for SMTP/IMAP and Roundcube 1.7.6 Apache with the Elastic skin.
+Both images are pinned by verified multi-platform digests. Mailpit remains the
+message inspector and relays only example.invalid recipients to GreenMail. The
+upstream GreenMail entrypoint is bypassed because it echoes credential options;
+the official Java server runs directly, with IMAP password checks enabled.
+
+Roundcube is at http://127.0.0.1:8080; app and inspector retain ports 8000/8025.
+The six named fictional parent app accounts anna.test, bram.test, cem.test,
+dana.test, els.test and finn.test have matching anna/bram/cem/dana/els/finn
+@example.invalid mailboxes. Docker bootstrap adds them idempotently, retaining
+all existing credentials and responses. Normal planning sends their invitations.
+All original demo addresses plus beheer and kantine also have mailboxes (26 total).
+Use `python scripts/dev.py credentials` for app and separate shared test-mail
+passwords; no generated passwords are in source. Existing ignored Docker config
+is upgraded by appending missing mail settings without resetting existing keys.
+
+The user explicitly required internet isolation. Mailpit, GreenMail and Roundcube
+join only Docker's internal network, with no SMTP/IMAP/API ports published. The
+fixed-target gateway alone joins the host-access bridge and publishes the three
+HTTP interfaces on 127.0.0.1. Runtime probes confirmed no default route, blocked
+external IPv4/IPv6 connections and blocked external DNS. A wrong IMAP password
+was rejected. There is no external SMTP relay or internet mail delivery.
+
+All 78 container tests passed (one existing Starlette deprecation warning).
+Real PostgreSQL bootstrap repeatability, Mailpit capture, private IMAP inboxes,
+Roundcube login, mailbox isolation, authenticated invitation confirmation and the
+independent worker heartbeat passed. The disposable test stack was cleaned up.
+In the browser, Anna's 21 November 12:00-14:00 invitation was confirmed; her other
+invitation remains pending. Roundcube sent an Anna-to-Bram message and Bram's
+inbox displayed it. The browser is left with Bram's inbox and the app logged out.
+Ignored screenshots: .local/test-webmail.jpg and .local/mail-confirmation.jpg.
+
+Mailpit and GreenMail messages are temporary across mail-container recreation or
+stops. App invitation/audit data, passwords and Roundcube preferences persist in
+their existing private config/volumes. This change does not deploy hosted code.

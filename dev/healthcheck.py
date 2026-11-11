@@ -14,6 +14,8 @@ def main():
         if sys.argv[1] == 'gateway':
             with urlopen('http://127.0.0.1:8025/readyz', timeout=3) as response:
                 assert response.status == 200
+            with urlopen('http://127.0.0.1:8080/', timeout=3) as response:
+                assert response.status == 200
     else:
         last = datetime.fromisoformat(Path('/tmp/sdw-worker-heartbeat').read_text())
         age = (datetime.now(timezone.utc)-last).total_seconds()

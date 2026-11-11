@@ -18,6 +18,7 @@ x-environment: &environment
   LOCAL_DOCKER: "1"
   LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:?Run python scripts/dev.py init}
   LOCAL_PARENT_PASSWORD: ${LOCAL_PARENT_PASSWORD:?Run python scripts/dev.py init}
+  LOCAL_MAIL_PASSWORD: ${LOCAL_MAIL_PASSWORD:?Run python scripts/dev.py init}
   WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-30}
 
 x-app: &app
@@ -61,11 +62,70 @@ services:
       MP_SMTP_DISABLE_RDNS: "true"
       MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
       MP_MAX_MESSAGES: "500"
+      MP_SMTP_RELAY_HOST: mailserver
+      MP_SMTP_RELAY_PORT: "3025"
+      MP_SMTP_RELAY_AUTH: none
+      MP_SMTP_RELAY_MATCHING: '@example\.invalid$$'
+      MP_SMTP_RELAY_PRESERVE_MESSAGE_IDS: "true"
+      MP_SMTP_RELAY_FWD_SMTP_ERRORS: "true"
+    depends_on:
+      mailserver: {condition: service_healthy}
     healthcheck:
       test: [CMD, /mailpit, readyz]
       interval: 3s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
+    networks: [local]
+
+  mailserver:
+    image: greenmail/standalone:2.1.15@sha256:309ba544ea482e5d4265d09921cdab07c8dad2cc4481d715c9b8ff5d3f0a149f
+    # Bypass the upstream shell entrypoint, which echoes user/password options.
+    entrypoint: [java]
+    command:
+      - -Djava.net.preferIPv4Stack=true
+      - -Xmx256m
+      - -Dgreenmail.setup.test.smtp
+      - -Dgreenmail.setup.test.imap
+      - -Dgreenmail.hostname=0.0.0.0
+      - -Dgreenmail.users.login=email
+      - -Dgreenmail.users=${LOCAL_MAIL_USERS:?Run python scripts/dev.py init}
+      - -jar
+      - /home/greenmail/greenmail-standalone.jar
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, bash, -c, "exec 3<>/dev/tcp/127.0.0.1/3025 && exec 4<>/dev/tcp/127.0.0.1/3143"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    networks: [local]
+
+  webmail:
+    image: roundcube/roundcubemail:1.7.6-apache@sha256:d23169b8bbb99b5e75adcd502b627d6f29e60833a7053a12e4ff133468c2e5b4
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: mailserver
+      ROUNDCUBEMAIL_DEFAULT_PORT: "3143"
+      ROUNDCUBEMAIL_SMTP_SERVER: mailpit
+      ROUNDCUBEMAIL_SMTP_PORT: "1025"
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_DES_KEY: ${LOCAL_WEBMAIL_KEY:?Run python scripts/dev.py init}
+      ROUNDCUBEMAIL_SKIN: elastic
+    configs:
+      - source: roundcube_local
+        target: /var/roundcube/config/local.inc.php
+    depends_on:
+      mailpit: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, php, -r, "exit(@file_get_contents('http://127.0.0.1/') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
     restart: unless-stopped
     networks: [local]
 
@@ -105,3 +165,7 @@ services:
 networks:
   local:
     internal: true
+
+configs:
+  roundcube_local:
+    file: ./dev/roundcube/local.inc.php
