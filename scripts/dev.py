@@ -84,8 +84,12 @@ def read_config(path):
 
 def compose_command(docker, config, *, project=PROJECT, test=False):
     overlay = 'compose.test.yaml' if test else 'compose.local.yaml'
-    return [docker, 'compose', '--project-name', project, '--project-directory', str(ROOT),
+    command = [docker, 'compose', '--project-name', project, '--project-directory', str(ROOT),
             '--env-file', str(config), '-f', str(ROOT/'compose.yaml'), '-f', str(ROOT/overlay)]
+    if (ROOT/'.local/build-ca.pem').is_file():
+        ca_overlay = 'compose.test.build-ca.yaml' if test else 'compose.build-ca.yaml'
+        command.extend(['-f', str(ROOT/ca_overlay)])
+    return command
 
 
 def execute(command, *, capture=False, check=True, timeout=None):

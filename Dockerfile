@@ -7,7 +7,9 @@ RUN python -m venv /opt/venv \
     && groupadd --gid 10001 sdw \
     && useradd --uid 10001 --gid sdw --no-create-home --shell /usr/sbin/nologin sdw
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --no-user -r /tmp/requirements.txt
+RUN --mount=type=secret,id=build_ca \
+    if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi; \
+    pip install --no-cache-dir --no-user -r /tmp/requirements.txt
 COPY --chown=10001:10001 app/ app/
 COPY --chown=10001:10001 migrations/ migrations/
 COPY --chown=10001:10001 dev/ dev/
@@ -21,9 +23,12 @@ CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "
 FROM runtime AS test
 USER root
 COPY requirements-dev.txt /tmp/requirements-dev.txt
-RUN pip install --no-cache-dir --no-user -r /tmp/requirements-dev.txt
+RUN --mount=type=secret,id=build_ca \
+    if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi; \
+    pip install --no-cache-dir --no-user -r /tmp/requirements-dev.txt
 COPY --chown=10001:10001 tests/ tests/
 COPY --chown=10001:10001 scripts/dev.py scripts/dev.py
-COPY --chown=10001:10001 compose*.yaml Dockerfile .dockerignore /app/
+COPY --chown=10001:10001 compose.yaml compose.local.yaml compose.test.yaml \
+    compose.build-ca.yaml compose.test.build-ca.yaml Dockerfile .dockerignore /app/
 USER 10001:10001
 CMD ["python", "-m", "dev.run_tests"]

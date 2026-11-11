@@ -380,3 +380,34 @@ Ignored screenshots: .local/test-webmail.jpg and .local/mail-confirmation.jpg.
 Mailpit and GreenMail messages are temporary across mail-container recreation or
 stops. App invitation/audit data, passwords and Roundcube preferences persist in
 their existing private config/volumes. This change does not deploy hosted code.
+
+## Docker startup after WSL installation — 11 November 2026
+
+Pulled and reviewed upstream releases 0.1.3 (loopback HTTP gateway) and 0.1.4
+(GreenMail, Roundcube and named fictional test parents), through commit 712ff31.
+WSL 3.0.5.0 is now installed and Docker Desktop's Linux engine runs successfully.
+
+Version 0.1.5 fixes this PC's remaining build failures. AVG intercepts package
+HTTPS using its trusted Windows public CA, which was exported to ignored
+`.local/build-ca.pem`. The wrapper selects matching optional local/test Compose
+overlays and passes this file as a BuildKit secret to the two pip installation
+steps. TLS certificate verification stays enabled. The CA is not copied into an
+image or installed in runtime trust; its absence was verified in the running app.
+Machines without that local file continue using normal public CA verification.
+
+The test-stage root Compose wildcard also attempted to scan an unreadable host
+`.pytest_cache` directory despite the source allowlist. Explicit named COPY inputs
+resolve that failure; pytest caches now have an explicit Docker ignore rule too.
+The restricted host pytest attempt was stopped after stalling; container results
+below are the completed verification for this change.
+
+Validation: all 79 container tests passed, with the existing Starlette TestClient
+deprecation warning. Repeated PostgreSQL bootstrap, Mailpit SMTP capture, private
+IMAP delivery/isolation, Roundcube login, authenticated invitation confirmation
+and independent worker advancement all passed. The temporary test project and
+its images were cleaned up. Interactive smoke checks passed, including host
+HTTP on app 8000, Mailpit 8025 and Roundcube 8080, both roles, languages, origins,
+cookies and recent job status. All seven persistent services are healthy and
+bootstrap exited successfully. Local data/passwords were preserved; configuration
+was extended with the upstream mail defaults. Credentials remain available via
+`python scripts/dev.py credentials`. No hosted deployment was performed.

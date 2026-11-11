@@ -18,6 +18,7 @@
 !tests/
 !tests/**
 **/__pycache__/
+**/.pytest_cache/
 **/*.pyc
 **/.env*
 **/*.db

@@ -159,6 +159,23 @@ def test_mail_upgrade_keeps_existing_app_and_mail_credentials(tmp_path):
     assert module.read_config(config) == updated
 
 
+def test_optional_build_ca_uses_only_the_matching_project_overlay(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location('sdw_dev_ca', ROOT/'scripts/dev.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, 'ROOT', tmp_path)
+    config = tmp_path/'local.env'
+    assert not any('build-ca' in arg for arg in module.compose_command('docker', config))
+    (tmp_path/'.local').mkdir()
+    (tmp_path/'.local/build-ca.pem').write_text('public-test-certificate')
+    local = module.compose_command('docker', config)
+    isolated = module.compose_command('docker', config, test=True)
+    assert str(tmp_path/'compose.build-ca.yaml') in local
+    assert str(tmp_path/'compose.test.build-ca.yaml') not in local
+    assert str(tmp_path/'compose.test.build-ca.yaml') in isolated
+    assert str(tmp_path/'compose.build-ca.yaml') not in isolated
+
+
 def test_named_mail_parents_preserve_passwords_on_repeat(db, monkeypatch):
     from dev.bootstrap import ensure_mail_parents
     from app.security import verify_password

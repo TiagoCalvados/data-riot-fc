@@ -175,6 +175,15 @@ local test login passwords. It does not prune Docker globally or touch alwaysdat
   the existing Python runtime image and preserves streaming/connection upgrades.
 - Startup failure: `doctor`, `status`, then `logs`; fix the failing dependency before
   retrying `up`. A failed migration prevents app/worker from starting.
+- HTTPS-scanning proxy/antivirus: if pip reports an untrusted issuer during build,
+  export the verified public CA certificate in PEM format to ignored
+  `.local/build-ca.pem`. The wrapper then selects optional build-secret overlays
+  for runtime and test dependency installation. TLS verification stays enabled;
+  the certificate is not copied into images or installed in their runtime trust
+  store. Remove the file to return to the standard public certificate authorities.
+- The test image copies named Compose inputs explicitly. This avoids scanning
+  inaccessible Windows cache directories while expanding a root-level wildcard;
+  pytest caches are also excluded from the build context.
 - An old Mailpit invitation may expire. Check the parent dashboard; the coordinator
   can update planning normally. No bootstrap operation resets existing responses.
 - If an interrupted test leaves a random project behind, inspect `docker compose ls`
@@ -220,3 +229,10 @@ PostgreSQL/SMTP/IMAP/Roundcube invitation-response flow passed. A browser check
 confirmed Anna's invitation and delivered an Anna-to-Bram message using Roundcube.
 The three mail services have only the internal network and no published protocol
 ports; runtime probes found no default route and blocked external IPv4, IPv6 and DNS.
+
+Version 0.1.5 was verified on this PC after WSL installation: the Linux engine,
+all local services and all three published HTTP ports are healthy. Its optional
+build CA support resolves AVG HTTPS-scanning certificate errors without disabling
+verification or changing runtime trust. All 79 container tests and the isolated
+PostgreSQL/SMTP/IMAP/Roundcube invitation-response and worker checks passed. The
+disposable test project was removed; the interactive stack remains running.

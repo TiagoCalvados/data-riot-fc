@@ -1,0 +1,17 @@
+# Selected by the wrapper only when an explicitly supplied local CA file exists.
+x-build: &build
+  secrets: [build_ca]
+
+services:
+  bootstrap:
+    build: *build
+  app:
+    build: *build
+  worker:
+    build: *build
+  gateway:
+    build: *build
+
+secrets:
+  build_ca:
+    file: ./.local/build-ca.pem

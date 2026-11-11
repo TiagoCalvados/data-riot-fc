@@ -1,0 +1,17 @@
+# Selected only for disposable tests when the local CA file exists.
+x-build: &build
+  secrets: [build_ca]
+
+services:
+  bootstrap:
+    build: *build
+  app:
+    build: *build
+  worker:
+    build: *build
+  tests:
+    build: *build
+
+secrets:
+  build_ca:
+    file: ./.local/build-ca.pem
